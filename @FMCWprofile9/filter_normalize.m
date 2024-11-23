@@ -1,0 +1,31 @@
+function obj=filter_normalize(obj)
+% HPM 07/28/10
+% this function uses a median filter to remove noise then calculates PDATA relative
+% to the noise above the surface
+% RUN THIS BEFORE REMOVING SKY CALIBRATION
+
+%disp('Performing median filter to remove noise, normalizing to near field noise level')
+if length(obj.P2.MedFiltSize)>0
+    disp('Performing median filter')
+    obj.PDATA = medfilt2(obj.PDATA,obj.P2.MedFiltSize); % median filter
+    br=ceil(obj.P2.MedFiltSize(1)/2); % bad rows
+    bc=ceil(obj.P2.MedFiltSize(2)/2); % bad columns
+    obj.PDATA=obj.PDATA(br:(end-br),bc:(end-bc));
+    obj.TWT=obj.TWT(br:(end-br));
+    obj.S.ProfileTraces=obj.S.ProfileTraces(bc:(end-bc));
+else
+    disp('No median filter applied')
+end
+if length(obj.P2.NoiseRange)>0
+    disp('applying normalization')
+    mN=mean(10.^(obj.PDATA(obj.P2.NoiseRange(1):obj.P2.NoiseRange(2),:)/10)); % mean noise amplitude
+    [n3,~]=size(obj.PDATA);
+    obj.PDATA=10.^(obj.PDATA/10)./(ones(n3,1)*mN); % normalize 
+    obj.PDATA=10*log10(obj.PDATA); % put on dB scale - amplitudes relative to near-field noise
+else
+    disp('no normalization applied')
+end
+% remove values on both ends - bad values caused by median filter
+% don't change GPU time or filenumber vector - these reference the original data traces
+%obj.CPUtime=obj.CPUtime(bc:(end-bc));
+%obj.filenumber=obj.filenumber(bc:(end-bc));

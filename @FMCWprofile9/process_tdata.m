@@ -1,0 +1,137 @@
+function obj = process_tdata(obj)
+% PROCESS_TDATA calculate zero-padded, windowed fft of time-domain data
+% HPM 02/15/05, 07/24/10
+% INPUT: obj.TDATA = matrix of time-domain data in columns
+%             obj.Fs = sample frequency
+% OUTPUT: obj.PDATA = normalized power spectral density
+%             obj.w = frequency difference between transmitted and received signal
+
+
+%pdir=[obj.data_dir 'PROCESSED/']; % processed directory
+pdir=obj.proc_dir;
+if ~exist(pdir,'dir') % if directory exists
+    disp('Creating directory to store processed results:')
+    mkdir(pdir)
+    cont='Y'
+else
+    if obj.P.overwrite==0
+        cont=input('Warning, directory exists - overwrite previous processing results? (Y/N)','s');
+    else
+        cont='Y';
+    end
+end
+if strcmp(cont,'Y')
+    maxP=obj.P.maxP; % number of FFT results to store
+    
+    %% lets figure out how many batches of files we have
+    rd=obj; % create new radar data object
+    minF=min(obj.P.files); maxF=max(obj.P.files); % get min and max file number to look at
+    nb=maxF-minF+1;
+    nb=min([nb obj.P.batchsize]); % use all files or 200, whichever smaller
+    s1=(floor(minF/nb))*nb+1; % start file
+    s2=(ceil(maxF/nb))*nb; % stop file
+    nbatch=ceil((s2-s1)/nb) % total number of batches
+    rd.P.files=s1:(s1+nb-1); % 25 files to process
+    disp('processing one batch to get parameters for initialization')
+    rd=subdivide_daq(rd); % subdivide raw daq files
+    rd=cal_psd_radar(rd); % process for freq domain
+    obj.TWT=rd.TWT;
+    obj.M.Fs=rd.M.Fs;
+    [n5,m5]=size(rd.TDATA);
+    P=zeros(maxP/2,m5,nbatch)*NaN; % initialize psd matrix
+    %D=zeros(maxP,m5,nbatch)*NaN; % initialize D matrix
+    T=zeros(n5-10,m5,nbatch)*NaN; % initialize time domain data matrix, account for more or less measurements per trace
+    C2a=zeros(m5,nbatch)*NaN; % initialize radar trace time vector
+    %FN=zeros(m5,nbatch)*NaN; % initialize radar trace time coincident with GPS
+    disp(['processing files: ' num2str(minF) ' to ' num2str(maxF)])
+    n4=maxP;
+    
+    if obj.P.GPUflag % if running on GPU
+        for n=1:nbatch % do a regular for loop
+            r2=process_tdata_batch(n,nb,maxF,obj,n4,n5,m5,s1);
+            P(:,:,n)=r2.P2;
+            %D(:,:,n)=r2.D2;
+            T(:,:,n)=r2.T2; % store time domain
+            C2a(:,n)=r2.C1;
+            %FN(:,n)=r2.fn;
+        end
+    else % if not on GPU, use multiple cores
+        if obj.P.Ncores>1
+            eval(['matlabpool open ' num2str(obj.P.Ncores)]) % open multiple cores
+            parfor n=1:nbatch % loop over each batch
+                r2=process_tdata_batch(n,nb,maxF,obj,n4,n5,m5,s1);
+                P(:,:,n)=r2.P2;
+                %D(:,:,n)=r2.D2;
+                T(:,:,n)=r2.T2; % store time domain
+                C2a(:,n)=r2.C1;
+                %FN(:,n)=r2.fn;
+            end
+            matlabpool close % close the cores
+        else % if not on GPU and only 1 core, don't open the matlab pool
+            for n=1:nbatch % loop over each batch
+                r2=process_tdata_batch(n,nb,maxF,obj,n4,n5,m5,s1);
+                P(:,:,n)=r2.P2;
+                %D(:,:,n)=r2.D2;
+                T(:,:,n)=r2.T2; % store time domain
+                C2a(:,n)=r2.C1;
+                %FN(:,n)=r2.fn;
+            end
+        end
+    end
+    [n6,m6,q6]=size(P);
+    obj.PDATA=single(reshape(P,n6,m6*q6));
+    %obj.D=single(reshape(D,2*n6,m6*q6));
+%    obj.filenumber=FN(:);
+    I2=isfinite(obj.PDATA(1,:)); % find finite traces
+    obj.PDATA=obj.PDATA(:,I2); % remove trailing NaNs
+%    obj.filenumber=obj.filenumber(I2);
+    [n7,m7,q7]=size(T);
+    obj.TDATA=single(reshape(T,n7,m7*q7));
+    obj.CPUtime=C2a(I2);
+    obj.Tpl=rd.Tpl;
+    obj.TWT=rd.TWT(n6+1:n4); % store two-way travel time
+else
+    disp('Processing cancelled, please specify different proc_dir and rerun')
+end
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %% SUBFUNCTIONS
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function r2=process_tdata_batch(n,nb,maxF,obj,n4,n5,m5,s1)
+%INPUT: nb=number of files per batch
+%       maxF=largest (last) daq file
+%       obj=the FMCWprofile8 object
+%       n4=maximum row number in PSD matrix to keep
+%       n5=rows in TDATA
+%       m5=columns in TDATA
+%       s1=start file
+
+
+% this function processes the time domain data for each batch
+
+rd=obj; % create new radar data object
+s3=s1+(n-1)*nb;
+s4=min([s3+nb-1 maxF]);
+rd.P.files=s3:s4; % files to process
+disp(['Subdividing:' rd.data_dir num2str(s3) '-' num2str(s4)]) % subdividing file
+rd=subdivide_daq(rd); % subdivide raw daq files
+rd.TDATA=rd.TDATA(1:(n5-10),:); % remove last 10 to fix size
+
+disp(['Processing:' rd.data_dir num2str(s3) '-' num2str(s4)]) % processed file
+rd=cal_psd_radar(rd); % process for freq domain
+% updated to work on file numbers not a multiple of 25
+%  modified to padd with NaNs to work with parfor
+P2=zeros(n4/2,m5)*NaN; % initialize psd matrix
+%D2=zeros(n4,m5)*NaN; % initialize psd matrix
+T2=zeros(n5-10,m5)*NaN; % initialize time domain data matrix, account for more or less measurements per trace
+C1=zeros(m5,1)*NaN; 
+[~,m9]=size(rd.PDATA);
+[n10,m10]=size(rd.TDATA); % get the sizes
+P2(1:n4/2,1:m9)=rd.PDATA(1:n4/2,:); % store psd
+%D2(1:n4,1:m9)=rd.D(1:n4,:); % store psd
+T2(1:n10,1:m10)=rd.TDATA; % store time domain
+C1(1:m9)=rd.CPUtime;
+% store in structure array for output
+r2.P2=P2;r2.T2=T2;r2.C1=C1;%r2.D2=D2;
+

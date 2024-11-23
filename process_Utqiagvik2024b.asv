@@ -1,0 +1,78 @@
+%% Utqiagvik 2024 FMCW from snowmobile
+datadisk='/Users/hpmarshall/';
+codedisk='/Users/hpmarshall/';
+rd=FMCWprofile9; % make a FMCW profile object
+% start with skycal
+rd.data_dir=[datadisk 'DATA_DRIVE/Utqiagvik2024/20240417/FMCWradar/utq20240417skyAtShore/P1/'];
+rd.M.frange=[4 18]; % low freq osc used for this survey
+rd.M.Fs=100000; % sample frequency [Hz]
+rd.P.frange=[7 17]; % process away from endpoints to reduce noise
+rd.P.channel=2; % time domain signal is on this raw data channel
+rd.P.nfft=2^14; % number of points in FFT
+rd.P.files=1:10; %; %1:100;
+rd=subdivide_daq(rd); % subdivide raw daq files
+skycal=rd.TDATA; % store TDATA from this skycal
+rd.TDATA=[]; % remove from rd object
+%% now load data files
+PDATA=[]; CPUtime=[];
+for n=1:4
+    s1=1+10*(n-1);
+    s2=s1+9;
+    rd.P.files=s1:s2;
+    rd.data_dir=[datadisk 'DATA_DRIVE/Utqiagvik2024/20240417/FMCWradar/utq20240417shore2tent2/P2/']; % raw data location
+    rd=subdivide_daq(rd); % subdivide raw daq files
+    %%
+    rd.TDATA=rd.TDATA-skycal; % perform sky calibration
+    rd=cal_psd_radar(rd); % process for freq domain
+    %% cleanup
+    rd.PDATA=rd.PDATA(1:2^11,:);
+    rd.D=[]; rd.TDATA=[];
+    rd.TWT=rd.TWT(8193:8193+2^11-1);
+    PDATA=[PDATA rd.PDATA]; % add next file
+    CPUtime=[CPUtime (rd.CPUtime+6/24)]; % convert to UTC and store
+    rd.PDATA=[];
+    n
+end
+
+
+%% plot
+x=1:length(rd.CPUtime);
+depth=rd.TWT*2.4e10/2;
+figure(1);clf; imagesc(x,depth,PDATA,[-90 -55]); colorbar
+
+%% now lets geolocate traces
+%%
+D=readtable([datadisk 'DATA_DRIVE/Utqiagvik2024/20240417/FMCWradar/uqt20240417Bgps.txt']);
+Ix=find(startsWith(string(D.Var1),'$GPGGA'));
+lat=zeros(length(Ix),1);
+lon=zeros(length(Ix),1);
+UTC=zeros(length(Ix),1);
+for n=1:length(Ix)
+    S=D(Ix(n),1).Var1{1};
+    D2=split(S,',');
+    if length(D2{3}) > 1
+        lat(n)=str2num(D2{3}(1:2))+(str2num(D2{3}(3:end)))/60;
+        lon(n)=-(str2num(D2{5}(1:3))+(str2num(D2{5}(4:end))/60));
+    else
+        lat(n)=NaN;lon(n)=NaN;
+    end
+    UTC(n,1)=datenum(2024,4,17,str2num(D2{2}(1:2)),str2num(D2{2}(3:4)),str2num(D2{2}(5:end)));
+end
+%%
+[x,y,zone]=ll2utm(lat,lon);
+Rx=interp1(UTC,x,CPUtime); % get easting for CPUtimes
+Ry=interp1(UTC,y,CPUtime); % get northing for CPUtimes
+figure(1);clf
+plot(Rx,Ry,'.')
+axis equal; 
+%% load magnaprobe data and plot
+D3=readtable([datadisk 'DATA_DRIVE/Utqiagvik2024/20240417/FMCWradar/Depths_2024-04-17_MagnaProbe_BSU_Formatted.csv']);
+[xM,yM,zone]=ll2utm(D3.Latitude_DD,D3.Longitude_DD);
+figure(1); hold on
+plot(xM,yM,'ko')
+
+%% now lets filter and average radar traces around each magnaprobe measurement
+xmin=593453; xmax=593917;
+ymin=7920008; ymax=7920655;
+Ix=(Rx>=xmin & Rx<=xmax);
+Iy=(Rx>=ymin & Rx<=ymax);

@@ -1,0 +1,100 @@
+function obj=get_GPS(obj)
+% HPM 07/28/10
+% this function gets the GPS coordinates associated with a given object
+% NOTE: this currently only works with the newest (2009-current) GPS files (GPSdata.txt)
+if isempty(obj.G.xyz)
+    GPSfile=dir([obj.data_dir 'G*.txt']);
+    fid=fopen([obj.data_dir GPSfile.name]);
+    S=textscan(fid,'%s');
+    if ~isempty(S{1})
+        m=1;
+        M=zeros(length(S{1}),9); % initialize
+        for n=1:length(S{1})
+            S2=S{1}{n}; % current line
+            if (length(S2)>70 && length(S2)<80) % if we have the right # of characters
+                d=textscan(S2,'%f,%6c,%f,%f,%1c,%f,%1c,%f,%f,%f,%f,%1c,%f,%1c');
+                % next put NaNs in fields that didn't convert correctly
+                for p=1:length(d);
+                    if isempty(d{p})
+                        d{p}=NaN;
+                    end
+                end
+                M(m,:)=[d{1} d{3} d{4} d{6} d{11} d{13} d{9} d{10} d{8}];
+                m=m+1;
+            end
+        end
+        
+        M=M(1:m-1,:); % remove trailing zeros
+        
+        %% get latitude and longitude
+        Lat=zeros(length(M),1)*NaN;
+        Lon=zeros(length(M),1)*NaN;
+        [Mr,~]=size(M);
+        for n=1:Mr
+            L1=strtrim(num2str(M(n,3))); % change latitude to a string and remove white spaces
+            L1b=num2str(round(M(n,3)));
+            if length(L1b)>4 % if over 100
+                Lat(n)=str2double(L1(1:3))+str2double(L1(4:end))/60;
+            else
+                Lat(n)=str2double(L1(1:2))+str2double(L1(3:end))/60;
+            end
+            L1=num2str(M(n,4)); % change longitude to a string
+            L1b=num2str(round(M(n,4)));
+            if length(L1b)>4 % if over 100
+                Lon(n)=str2double(L1(1:3))+str2double(L1(4:end))/60;
+            else
+                Lon(n)=str2double(L1(1:2))+str2double(L1(3:end))/60;
+            end
+        end
+        
+        %% now convert to UTM
+        ind=find(Lat>0 & Lon>0 & Lat<180 & Lon<180);
+        Lon=-Lon(ind); % make negative
+        Lat=Lat(ind);
+        m_proj('UTM','lon',[min(Lon) max(Lon)],'lat',[min(Lat) max(Lat)],'ellipsoid','wgs84')
+        %m_proj('get')
+        [x,y]=m_ll2xy(Lon,Lat);
+        C=[x(:) y(:) M(ind,5)];
+        
+        %% now get GPStime for each position
+        GPSstr=num2str(M(:,2),'%6.1f'); % get GPS time, but needs to be converted.
+        I7=isspace(GPSstr); % find empty spaces caused by hour, minute=00
+        GPSstr(I7)='0'; % set them equal to zero
+        GPStime=[str2num(GPSstr(:,1:2)) str2num(GPSstr(:,3:4)) str2num(GPSstr(:,5:end))];
+        GPStime=datenum([ones(length(M(:,2)),1)*obj.date GPStime]); % GPStime in day.dec
+        
+        %% now get tracenumber for each position
+        daqfile=M(ind,1); % get the radar file number for each GPS
+        NumSat=M(ind,7);
+        HDOP=M(:,8);
+        Fix=M(:,9);
+        %%
+    else
+        C=[];
+        GPStime=[];
+        daqfile=[];
+        Fix=[];
+        NumSat=[];
+        HDOP=[];
+    end
+    fclose(fid);
+    G=GPS;
+    G.xyz=C;
+    G.time=GPStime;
+    G.daqfile=daqfile;
+    G.NumSat=NumSat;
+    G.HDOP=HDOP;
+    G.Fix=Fix;
+    obj.G=G;
+end
+if length(G.xyz)>9 % if there are at least 10 GPS locations, make a plot
+    figure(1);clf
+    dx=min(G.xyz(:,1));
+    dy=min(G.xyz(:,2));
+    plot(G.xyz(:,1)-dx,G.xyz(:,2)-dy,'o')
+    hold on
+    I9=find(ismember(G.daqfile,obj.P.files)); % GPS data associated with the files of interest
+    plot(G.xyz(I9,1)-dx,G.xyz(I9,2)-dy,'rx')
+    obj.FEFN=[dx dy]; % False Easting and Northing
+end
+

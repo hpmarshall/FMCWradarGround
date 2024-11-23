@@ -1,0 +1,6 @@
+I=find_peaks(M,thresh)
+% HPM 08/04/10
+% this function finds peaks based on the first or last peak above a threshold
+% INPUT: M=matrix of values
+%        thresh = threshold to define peak
+% OUTPUT:      I=cell array containing the index of all peaks above thresh for each column
