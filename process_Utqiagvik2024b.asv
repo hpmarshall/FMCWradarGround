@@ -74,5 +74,170 @@ plot(xM,yM,'ko')
 %% now lets filter and average radar traces around each magnaprobe measurement
 xmin=593453; xmax=593917;
 ymin=7920008; ymax=7920655;
-Ix=(Rx>=xmin & Rx<=xmax);
-Iy=(Rx>=ymin & Rx<=ymax);
+IxR=(Rx>=xmin & Rx<=xmax & Ry>=ymin & Ry<=ymax);
+IxM=(xM>=xmin & xM<=xmax & yM>=ymin & yM<=ymax);
+
+%% use kernal smooth to get average radar trace for each magnaprobe point
+% lets fit a line to the points for the location of best estimate
+Rx2=downsample(Rx(IxR),40)-xmin; % downsample to equally weight radar and MP for interpolant
+Ry2=downsample(Ry(IxR),40)-ymin;
+%%
+xM2=xM(IxM)-xmin; yM2=yM(IxM)-ymin;
+figure(2);clf
+plot(Rx(IxR)-xmin,Ry(IxR)-ymin,'.')
+hold on
+plot(xM(IxM)-xmin,yM(IxM)-ymin,'ro')
+hold on
+plot(Rx2,Ry2,'k+')
+plot(xM2,yM2,'m^')
+P=polyfit([Rx2(:);xM2(:)],[Ry2(:);yM2(:)],1) % fit a line
+dx=sqrt(1/(1+P(1)^2)); % x spacing to get 1m spacing along the line
+xmod=0:dx:max(Rx2); % locations for estimates
+ymod=polyval(P,xmod);
+plot(xmod,ymod,'k-','linewidth',3)
+%% first interpolate the Magnaprobe data to the line
+MPdepthRaw=D3.DepthCm(IxM);
+winsize=15;
+MPdepth=zeros(size(xmod))*NaN;
+for n=1:length(xmod)
+    dist=sqrt((xM2-xmod(n)).^2+(yM2-ymod(n)).^2);
+    Ix=dist<winsize
+    if sum(Ix)>0
+        weights=15/16*(1-(dist(Ix)/winsize).^2).^2; % bi-square kernal of weights
+        MPdepth(n)=sum(weights.*MPdepthRaw(Ix))./sum(weights); % non-param estimate
+    end
+end
+dr=sqrt(diff(xmod).^2+diff(ymod).^2); % change in distance along line
+rmod=[0 round(cumsum(dr))];
+figure(3);clf
+plot(rmod,MPdepth,'bo-')
+%% now we will smooth the radar data to these points and then pick
+Rx3=Rx(IxR)-xmin;
+Ry3=Ry(IxR)-ymin; 
+PDATA2=PDATA(:,IxR); % subset of transect 
+figure(10);clf
+imagesc(PDATA2,[-85 -60])
+%% lets first try smoothing with a 2.5m window
+winsize=2.5;
+dx=sqrt(0.01/(1+P(1)^2)); % x spacing to get 0.1m spacing along the line
+xmod2=0:dx:max(Rx2); % locations for estimates
+ymod2=polyval(P,xmod2);
+PDATA3=zeros(2048,length(xmod2))*NaN;
+for n=1:length(xmod2)
+    dist=sqrt((Rx3-xmod2(n)).^2+(Ry3-ymod2(n)).^2);
+    Ix=dist<winsize;
+    if sum(Ix)>0
+        weights=15/16*(1-(dist(Ix)/winsize).^2).^2; % bi-square kernal of weights
+        W=ones(2048,1)*weights; % matrix of weights
+        PDATA3(:,n)=sum(W.*10.^(PDATA2(:,Ix)/10),2)./sum(weights);
+    end
+end
+rmod2=[0 cumsum(sqrt(diff(xmod2).^2+diff(ymod2).^2))];
+%%
+figure(5);clf;
+imagesc(rmod2,(1:2048)',10*log10(PDATA3),[-90 -60]); colorbar;
+
+%% now lets pick some peaks
+sthresh=1e-9;
+gthresh=1.4e-9;
+TWT=rd.TWT;
+C=radarFit(rmod2,TWT,PDATA3,rmod,MPdepth,gthresh,sthresh)
+%% now find best thresholds
+fh=@(p) radarFit(rmod2,TWT,PDATA3,rmod,MPdepth,p(1),p(2));
+p0=[gthresh,sthresh];
+[pval,fval]=fminsearch(fh,p0)
+%%
+[RMSE,Rval,RadarDepth] = radarFit2(rmod2,TWT,PDATA3,rmod,MPdepth,pval(1),pval(2));
+figure(20);clf
+plot(RadarDepth,MPdepth,'o')
+
+%% check on mean density
+rho=[400, 420, 460, 470, 440, 440, 420, 420, 450, 430, 370, 360, 240, 270, 210, 220];
+3e10/sqrt(real(e_snowdry(mean(rho))))
+
+
+%%
+depth=TWT*2.275e10-82;
+figure(6);clf; subplot(1,5,1:4)
+imagesc(rmod2,depth,10*log10(PDATA3),[-85 -65]); colorbar;
+set(gca,'FontSize',14,'FontWeight','bold','LineWidth',2)
+xlabel('distance from shore [m]')
+ylabel('depth in snow [cm]')
+axis([0 500 -50 90])
+text(160,-15,'snow surface','FontSize',16,'FontWeight','bold','Color','w')
+text(175,45,'snow-ice interface','FontSize',16,'FontWeight','bold','Color','w')
+text(300,-40,'instrumentation noise','FontSize',16,'FontWeight','bold','Color','w')
+hold on
+plot([100 100],[-40 100],'r-','linewidth',2)
+title('6-18 GHz FMCW radar [dB]')
+subplot(1,5,5)
+h(1)=plot(PDATA3(:,1001),depth,'r-','linewidth',3)
+set(gca,'FontSize',14,'FontWeight','bold','LineWidth',2,'ydir','reverse')
+axis([0 3e-7 -50 90])
+text(1e-8,-2,'snow surface','FontSize',16,'FontWeight','bold','Color','k')
+text(1.8e-7,15,'snow-ice','FontSize',16,'FontWeight','bold','Color','k')
+hold on
+h(2)=plot([0 3e-7],[0 0],'k-.','linewidth',2)
+h(3)=plot([0 3e-7],[13 13],'b-','linewidth',2)
+h2=legend(h,'radar trace @ 100m','snow surface','probe depth')
+set(h2,'FontSize',16,'FontWeight','bold','Location','SouthWest')
+ylabel('depth in snow [cm]')
+xlabel('amplitude')
+%%
+figure(11);clf
+subplot(2,3,[1 2 4 5])
+h(1)=plot(rmod,MPdepth,'bo-','LineWidth',2)
+hold on
+h(2)=plot(rmod,RadarDepth,'ro-','LineWidth',2)
+set(gca,'FontSize',14,'FontWeight','bold','LineWidth',2)
+xlabel('distance from shore [m]')
+ylabel('snow depth [cm]')
+h2=legend('MagnaProbe depth','FMCW radar depth')
+set(h2,'FontSize',16,'FontWeight','bold','Location','NorthEast')
+text(600,40,'R=0.74','FontSize',16,'FontWeight','bold','Color','k')
+text(600,38,'RMSE=5.08 cm','FontSize',16,'FontWeight','bold','Color','k')
+subplot(2,3,[3 6])
+L={'MagnaProbe','Radar'};
+hB=boxplot([MPdepth(:) RadarDepth],'notch','on','labels',L)
+set(gca,'FontSize',14,'FontWeight','bold','LineWidth',2)
+set(hB,{'linew'},{2})
+ylabel('snow depth [cm]')
+
+%% now make a datafile for Achille
+[Rlat,Rlon]=utm2ll(xmod(:)+xmin,ymod(:)+ymin,4)
+kmlwritepoint('UtqiagvikRadarSurvey.kml',Rlat,Rlon)
+M=[xmod(:)+xmin ymod(:)+ymin Rlat(:) Rlon(:) RadarDepth(:)];
+csvwrite('RadarDepthsUtqiagvik20240417.csv',M)
+
+
+
+%%
+% hold on
+% plot(rmod2,Isurf,'wo','linewidth',2,'markersize',10)
+% plot(rmod2,Iground,'kx','linewidth',2,'markersize',10)
+% 
+
+
+%% print to file
+fileID = fopen('RadarDataUtqiagvik20240417c.txt','w');
+formatSpec = '%10.1f %10.1f %10.10f %10.10f %10.1f\n';
+[nrows,ncols] = size(M);
+fprintf(fileID,'%s,%s,%s,%s,%s')
+for row = 1:nrows
+    fprintf(fileID,formatSpec,C{row,:});
+end
+fclose(fileID);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
