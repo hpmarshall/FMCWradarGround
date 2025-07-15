@@ -14,6 +14,7 @@ if isempty(obj.P.vrange)
 end
 %% First load one file to determine size
 D=dir([obj.data_dir '*.mat']);
+disp([obj.data_dir D(1).name]);
 filename=[obj.data_dir D(1).name]; % filename
 load(filename); % get some info
 Fs=100000; % sample rate [Hz]

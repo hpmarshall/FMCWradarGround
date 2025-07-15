@@ -1,9 +1,11 @@
 %% Utqiagvik 2024 FMCW from snowmobile
-datadisk='/Users/hpmarshall/';
-codedisk='/Users/hpmarshall/';
+datadisk='/Users/jukesliu/Documents/POSTDOC/snow-radar/FMCWradar/';
+codedisk='/Users/jukesliu/Documents/POSDTOC/snow-radar/FMCWradar/';
 rd=FMCWprofile9; % make a FMCW profile object
+fs = 16; % standard fontsize for all figuers
+
 % start with skycal
-rd.data_dir=[datadisk 'DATA_DRIVE/Utqiagvik2024/20240417/FMCWradar/utq20240417skyAtShore/P1/'];
+rd.data_dir=[datadisk 'utq20240417skyAtShore/P1/'];
 rd.M.frange=[4 18]; % low freq osc used for this survey
 rd.M.Fs=100000; % sample frequency [Hz]
 rd.P.frange=[7 17]; % process away from endpoints to reduce noise
@@ -19,11 +21,11 @@ for n=1:4
     s1=1+10*(n-1);
     s2=s1+9;
     rd.P.files=s1:s2;
-    rd.data_dir=[datadisk 'DATA_DRIVE/Utqiagvik2024/20240417/FMCWradar/utq20240417shore2tent2/P2/']; % raw data location
+    rd.data_dir=[datadisk 'utq20240417shore2tent2/P2/']; % raw data location
     rd=subdivide_daq(rd); % subdivide raw daq files
     %%
     rd.TDATA=rd.TDATA-skycal; % perform sky calibration
-    rd=cal_psd_radar(rd); % process for freq domain
+    rd=cal_psd_radar(rd); % process for freq domain (calculate power spectral density)
     %% cleanup
     rd.PDATA=rd.PDATA(1:2^11,:);
     rd.D=[]; rd.TDATA=[];
@@ -31,7 +33,6 @@ for n=1:4
     PDATA=[PDATA rd.PDATA]; % add next file
     CPUtime=[CPUtime (rd.CPUtime+6/24)]; % convert to UTC and store
     rd.PDATA=[];
-    n
 end
 
 
@@ -42,7 +43,7 @@ figure(1);clf; imagesc(x,depth,PDATA,[-90 -55]); colorbar
 
 %% now lets geolocate traces
 %%
-D=readtable([datadisk 'DATA_DRIVE/Utqiagvik2024/20240417/FMCWradar/uqt20240417Bgps.txt']);
+D=readtable([datadisk 'uqt20240417Bgps.txt']);
 Ix=find(startsWith(string(D.Var1),'$GPGGA'));
 lat=zeros(length(Ix),1);
 lon=zeros(length(Ix),1);
@@ -58,15 +59,16 @@ for n=1:length(Ix)
     end
     UTC(n,1)=datenum(2024,4,17,str2num(D2{2}(1:2)),str2num(D2{2}(3:4)),str2num(D2{2}(5:end)));
 end
-%%
+%% FIGURE 1
 [x,y,zone]=ll2utm(lat,lon);
 Rx=interp1(UTC,x,CPUtime); % get easting for CPUtimes
 Ry=interp1(UTC,y,CPUtime); % get northing for CPUtimes
-figure(1);clf
-plot(Rx,Ry,'.')
-axis equal; 
+figure(1);clf % figure params
+ax=gca; ax.XAxis.FontSize = fs; ax.YAxis.FontSize = fs; axis equal; 
+plot(Rx,Ry,'.'); title('UTM coordinates for profile',FontSize=fs);
+xlabel('Easting [m]',FontSize=fs); ylabel('Northing [m]','FontSize',fs);
 %% load magnaprobe data and plot
-D3=readtable([datadisk 'DATA_DRIVE/Utqiagvik2024/20240417/FMCWradar/Depths_2024-04-17_MagnaProbe_BSU_Formatted.csv']);
+D3=readtable([datadisk 'Depths_2024-04-17_MagnaProbe_BSU_Formatted.csv']);
 [xM,yM,zone]=ll2utm(D3.Latitude_DD,D3.Longitude_DD);
 figure(1); hold on
 plot(xM,yM,'ko')
@@ -81,9 +83,9 @@ IxM=(xM>=xmin & xM<=xmax & yM>=ymin & yM<=ymax);
 % lets fit a line to the points for the location of best estimate
 Rx2=downsample(Rx(IxR),40)-xmin; % downsample to equally weight radar and MP for interpolant
 Ry2=downsample(Ry(IxR),40)-ymin;
-%%
+%% FIGURE 2: smoothed points
 xM2=xM(IxM)-xmin; yM2=yM(IxM)-ymin;
-figure(2);clf
+figure(2);clf;  % Figure params
 plot(Rx(IxR)-xmin,Ry(IxR)-ymin,'.')
 hold on
 plot(xM(IxM)-xmin,yM(IxM)-ymin,'ro')
@@ -94,7 +96,7 @@ P=polyfit([Rx2(:);xM2(:)],[Ry2(:);yM2(:)],1) % fit a line
 dx=sqrt(1/(1+P(1)^2)); % x spacing to get 1m spacing along the line
 xmod=0:dx:max(Rx2); % locations for estimates
 ymod=polyval(P,xmod);
-plot(xmod,ymod,'k-','linewidth',3)
+plot(xmod,ymod,'k-','linewidth',3); title('Interpolated MagnaProbe transect',FontSize=fs);
 %% first interpolate the Magnaprobe data to the line
 MPdepthRaw=D3.DepthCm(IxM);
 winsize=15;
@@ -109,16 +111,18 @@ for n=1:length(xmod)
 end
 dr=sqrt(diff(xmod).^2+diff(ymod).^2); % change in distance along line
 rmod=[0 round(cumsum(dr))];
-figure(3);clf
-plot(rmod,MPdepth,'bo-')
+figure(3);clf % FIGURE 3: Interpolated Magna Probe data
+plot(rmod,MPdepth,'bo-'); xlabel('rmod',fontsize=fs); ylabel('depths [cm]',fontsize=fs);
+title('Interpolated MagnaProbe depths',FontSize=fs);
 %% now we will smooth the radar data to these points and then pick
 Rx3=Rx(IxR)-xmin;
 Ry3=Ry(IxR)-ymin; 
 PDATA2=PDATA(:,IxR); % subset of transect 
 figure(10);clf
 imagesc(PDATA2,[-85 -60])
+title('subset of radargram',FontSize=fs);
 %% lets first try smoothing with a 2.5m window
-winsize=2.5;
+winsize=2.5; % meters
 dx=sqrt(0.01/(1+P(1)^2)); % x spacing to get 0.1m spacing along the line
 xmod2=0:dx:max(Rx2); % locations for estimates
 ymod2=polyval(P,xmod2);
@@ -133,10 +137,10 @@ for n=1:length(xmod2)
     end
 end
 rmod2=[0 cumsum(sqrt(diff(xmod2).^2+diff(ymod2).^2))];
-%%
+%% FIGURE 5: radargram
 figure(5);clf;
 imagesc(rmod2,(1:2048)',10*log10(PDATA3),[-90 -60]); colorbar;
-
+title('radargram',FontSize=fs);xlabel('rmod2',fontsize=fs);
 %% now lets pick some peaks
 sthresh=1e-9;
 gthresh=1.4e-9;
@@ -145,12 +149,14 @@ C=radarFit(rmod2,TWT,PDATA3,rmod,MPdepth,gthresh,sthresh)
 %% now find best thresholds
 fh=@(p) radarFit(rmod2,TWT,PDATA3,rmod,MPdepth,p(1),p(2));
 p0=[gthresh,sthresh];
-[pval,fval]=fminsearch(fh,p0)
-%%
+[pval,fval]=fminsearch(fh,p0) % find minimum error
+%% radarfit2 also calculates the correlation coefficient (Rval)
 [RMSE,Rval,RadarDepth] = radarFit2(rmod2,TWT,PDATA3,rmod,MPdepth,pval(1),pval(2));
 figure(20);clf
-plot(RadarDepth,MPdepth,'o')
-
+plot([0 0],[45 45],'--k','linewidth',3); hold on; % 1 to 1 line
+% plot(RadarDepth,MPdepth,'o'); hold on; axis equal;
+xlim([0,45]); ylim([0,45]);
+title('Radar depths vs. MagnaProbe depths',FontSize=fs);
 %% check on mean density
 rho=[400, 420, 460, 470, 440, 440, 420, 420, 450, 430, 370, 360, 240, 270, 210, 220];
 3e10/sqrt(real(e_snowdry(mean(rho))))
@@ -220,11 +226,11 @@ csvwrite('RadarDepthsUtqiagvik20240417.csv',M)
 
 %% print to file
 fileID = fopen('RadarDataUtqiagvik20240417c.txt','w');
-formatSpec = '%10.1f %10.1f %10.10f %10.10f %10.1f\n';
+formatSpec = '%10.1f %10.1f %10.12f %10.12f %10.1f\n';
 [nrows,ncols] = size(M);
-fprintf(fileID,'%s,%s,%s,%s,%s')
+fprintf(fileID,'%s\n','Easting [Zone 4, m], Northing [Zone 4, m], Latitude [DecDeg], Longitude [DecDeg], SnowDepth [cm]')
 for row = 1:nrows
-    fprintf(fileID,formatSpec,C{row,:});
+    fprintf(fileID,formatSpec,M(row,:));
 end
 fclose(fileID);
 

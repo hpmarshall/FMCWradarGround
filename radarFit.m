@@ -39,6 +39,9 @@ for n=1:length(rmod)
         Sloc=median(TWT(Isurf(Ix(IxS)))); % surface TWT
         Gloc=median(TWT(Iground(Ix(IxG)))); % ground TWT
         RadarDepth(n)=(Gloc-Sloc)*2.275e10; % estimated depth (find other factor of 2!)
+        % 2.275 is the wave velocity in snow based on the measured
+        % densities in pits at Uqtuiavik (doesn't have a major effect) -
+        % avg value is fine!
     end
 end
 RadarDepth=nonparametric_smooth8(rmod,RadarDepth,rmod,10);

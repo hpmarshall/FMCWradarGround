@@ -30,9 +30,10 @@ classdef FMCWprofile9
         rho=250; % [kg/m^3] density for estimating dry snow velocity
         DepthRange % [min max] depth scale for plot
         Marks % structure array containing marked traces and descriptions
+        % date % JUKES ADDED DATE PROPERTY
     end
     properties (Dependent = true, SetAccess = private)
-        %date
+        date
         subdir % cell array of subdirectories
         %daqfiles
     end
