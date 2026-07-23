@@ -1,0 +1,28 @@
+function obj = subdivide_daq(obj)
+% SUBBDIVIDE_DAQ takes series of continuous voltage ramps and subdivides
+% HPM 01/15/07, 04/26/08, 07/24/10
+%   NOTE: now FOR loop removed, much faster!
+% INPUT: obj. = data directory
+%             vrange = [min max] voltage range to use
+% OUTPUT: T = smoothed time domain matrix
+%               Fs = sample frequency on smoothed data
+%    CPUtime = serial date for each trace
+
+% defaults
+if nargin<2
+    vrange=[0.5 9.5]; % default voltage range
+end
+
+[data, time, abstime, events, daqinfo] = daqread(filename); % get some info
+Fs=daqinfo.ObjInfo.SampleRate; % sample freq
+ramp=data(:,1); % voltage ramp
+tdata=data(:,3); % time domain data (note here data(:,2) is a garbage channel)
+i1=find(ramp>=vrange(1) & ramp<=vrange(2)); % data in range
+i2=diff(i1); i3=find(i2>5); % find breaks between traces
+S=[i1(i3(1:end-1)+1) i1(i3(2:end))]; % start and end of each trace
+TL=min(diff(S,1,2))+1; % minimum trace length
+x=0:(TL-1); % vector of delta S
+X=ones(length(S),1)*x; % matrix of increments
+IND=(S(:,1)*ones(1,TL)+X)'; % index of all traces, 1 column for each trace
+T=tdata(IND); % time domain data, subdivided for each trace
+CPUtime=datenum(abstime)+(S+TL/2)/Fs/60/60/24; % absolute time [days] for trace

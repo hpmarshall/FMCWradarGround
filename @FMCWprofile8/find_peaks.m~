@@ -1,0 +1,37 @@
+I=find_peaks(x,y,M,xi,yi,thresh,wx,wy)
+% HPM 08/04/10
+% this function finds peaks based on the first or last peak above a threshold
+%  INPUT: x = x-coordinate
+%         y = y-coordinate
+%         M = matrix of values
+%         xi = x-locations of estimates
+%         yi = y-locations of estimates
+%        thresh = threshold to define peak
+%            wx = window for horizontal
+%            wy = window for vertical
+% OUTPUT:     I = pdf of peak location
+
+% in each column, find all peaks above threshold
+[n1,m1]=size(M); % dimensions of M
+for m=1:m1 % loop over columns
+        I2=find(imregionalmax(M(:,m))); % find all peaks
+        I3{m}=find(M(I2,m)>thresh); % find all peaks above thresh
+end
+%% now loop over locations of estimates to get pdf for each
+I=zeros(length(yi),length(xi)); % matrix of pdf values
+for m=1:length(xi) % loop over horizontal
+    I4=find(x>(xi(m)-wx)) && x<xi(m)); % find columns 
+    
+        
+        
+        
+        
+        
+        
+        if length(i3)
+            ground(n)=i2(i3(end));
+        else
+            ground(n)=NaN;
+        end
+end
+

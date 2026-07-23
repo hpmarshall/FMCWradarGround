@@ -1,0 +1,57 @@
+function obj=get_GPS_all(obj)
+% HPM 07/16/12
+% this function gets the GPS coordinates in all subdirectories
+% NOTE: this currently only works with the newest GPS files (GPSdata.txt)
+
+if isempty(dir([obj.proc_dir 'GPS_all.mat'])) % if GPS data has not been processed
+    GPS=cell(length(obj.subdir),1);
+    for n=1:length(obj.subdir)
+        disp(obj.subdir{n})
+        flag=dir([obj.data_dir obj.subdir{n} '/' 'G*.txt']); % check for GPS file
+        if ~isempty(flag)
+            rd=FMCWprofile8;
+            rd.data_dir=[obj.data_dir obj.subdir{n} '/'];
+            rd=get_GPS(rd);
+            if ~isempty(rd.GPS)
+                GPS{n}=rd.GPS; % store the GPS data
+            end
+            rd.GPS=[]; % remove the GPS field for the next directory
+        end
+    end
+    save([obj.proc_dir 'GPS_all','GPS')
+    obj.GPS=GPS; % store in the stucture array
+else
+    load([obj.data_dir 'GPS_all'])
+    obj.GPS=GPS; % store the GPS data that was loaded
+end
+figure(1);clf
+c='rgbykm';
+m='ox+s^*dv><ph';
+M=[];
+for n=1:length(GPS)
+    M=[M;GPS{n}.xyz];
+end
+obj.FEFN=[median(M(:,1)) median(M(:,2))];
+for n=1:length(GPS)
+    n
+    q=ceil(n/5);
+    h(n)=plot(GPS{n}.xyz(:,1)-obj.FEFN(1),GPS{n}.xyz(:,2)-obj.FEFN(2),[c(rem(n,5)+1) m(q)]);
+    hold on
+end
+legend(h,obj.subdir)
+set(gca,'FontSize',14,'FontWeight','bold','LineWidth',2)
+xlabel('False Easting [m]')
+ylabel('False Northing [m]')
+title(['Origin: N= ' num2str(obj.FEFN(1)) ', E= ' num2str(obj.FEFN(2))])
+
+
+
+% figure(1);clf
+% dx=min(obj.xyz_GPS(:,1));
+% dy=min(obj.xyz_GPS(:,2));
+% plot(obj.xyz_GPS(:,1)-dx,obj.xyz_GPS(:,2)-dy,'o')
+% hold on
+% I9=find(ismember(obj.GPSrtrace,obj.files)); % GPS data associated with the files of interest
+% plot(obj.xyz_GPS(I9,1)-dx,obj.xyz_GPS(I9,2)-dy,'rx')
+% obj.FEFN=[dx dy]; % False Easting and Northing
+

@@ -1,0 +1,35 @@
+function obj = range_gain(obj)
+% apply an automatic gain control
+
+mP=quantile(obj.PDATA,0.025,2); % take the 2.5% quantile
+[n1,m1]=size(obj.PDATA); % get size of PDATA
+x=1:n1; % index to time-domain samples
+minP2 = nonparametric_smooth8(x,mP,x,obj.gain_window);
+[n1,m1]=size(rd.PDATA);
+P2=rd.PDATA-minP2*ones(1,m1);
+
+function ymod = nonparametric_smooth8(x,y,xmod,winsize)
+% this function smooths a data set of 1 variable using a bisquare kernal
+% This version does only vectors, but much faster 04/13/06
+% HPM 1/5/02
+% INPUT:         x = independent variable [n,1]
+%                y = dependent variable [n,1]
+%             xmod = locations for estimates [*,1]
+%          winsize = size of window [same units as x]
+% OUTPUT:     ymod = non-parametric density estimate [*,1]
+% NOTE: 09/18/08 - now use only finite points to best handle NaN
+
+
+x=x(:);y=y(:);xmod=xmod(:); % force columns
+ymod=zeros(size(xmod));
+for i=1:length(xmod)
+    dist=sqrt((x-xmod(i)).^2); % distance from xmod to each point
+    ival=find(dist<winsize); % use only the points within winsize of xmod 
+    ival=ival(isfinite(y(ival))); % remove NaNs
+    if isempty(ival)
+        ymod(i)=NaN; % give a NaN if xmod has no data within winsize
+    else
+        weights=15/16*(1-(dist(ival)/winsize).^2).^2; % bi-square kernal of weights
+        ymod(i)=sum(weights.*y(ival))./sum(weights); % non-param estimate
+    end
+end

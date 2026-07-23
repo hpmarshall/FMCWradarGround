@@ -1,0 +1,19 @@
+function obj=process_tdata_all(obj)
+% HPM 07/16/12
+% this function processes all of the data in all subdirectories given in
+%   obj.subdir.  Note it must be run after get_GPS_all
+
+data_dir=obj.data_dir;
+for n=3:3 %length(obj.subdir)
+    obj.data_dir=[obj.data_dir obj.subdir{n} '/'];
+    if length(obj.daqfiles)<2000
+        obj.files=1:(length(obj.daqfiles)-1);
+        obj.TDATA=[];
+        tic
+        obj=process_tdata(obj);
+        toc
+        save
+        obj.data_dir=data_dir;
+    else
+        
+end

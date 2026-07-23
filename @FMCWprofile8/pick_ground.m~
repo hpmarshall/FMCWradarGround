@@ -1,0 +1,26 @@
+function obj = pick_ground(obj)
+% HPM 11/2/11
+% this method picks the ground reflection
+
+% first apply a 10x10 convolution
+hw=10
+cI=-hw:hw;
+wc=15/16*(1-(cI/hw).^2).^2;
+hr=10
+rI=-hr:hr;
+wr=15/16*(1-(rI/hr).^2).^2;
+P3=conv2(wc,wr,10.^(obj.PDATA/10),'same');
+P3=10*log10(P3);
+[~,m6]=size(obj.PDATA);
+Isurf2=ones(1,m6); % surface 
+for n=1:m6
+    I3=find(imregionalmax(P3,[0 1 0;0 1 0;0 1 0])); % get all the peaks
+    I4=find(P3(I3,n)>obj.Gthresh); % find peaks above the threshold
+    if ~isempty(I4)
+        peaks=I3(I4); % all the peaks within range above the threshold
+        Iground(n)=peaks(end); % index to first peak above threshold
+    else
+        Iground(n)=NaN;
+    end
+end
+obj.Iground=Iground;
