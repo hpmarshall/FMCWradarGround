@@ -37,18 +37,11 @@ for n=1:length(obj.proc_subdir)
                 end
                 obj=filter_normalize(obj); % apply median filter and normalize to noise level
                 %obj=range_gain(obj); % apply AGC
-%                 if ~isempty(G.xyz) % if the GPS object has xyz coordinates
-%                     obj=get_xyz_radar(obj); % get xyz coordinates for all traces
-%                 else % otherwise we set the CPU tine and use an old function to get the GPS data - see SBB processing for this...
-%                     disp('warning, using get_radarGPS2 which is not currently a method for FMCWprofile8! please include as object method!')
-%                     if ~isempty(obj.S.ProfileTraces)
-%                         Rtime=obj.CPUtime(obj.S.ProfileTraces);
-%                     else
-%                         Rtime=obj.CPUtime;
-%                     end
-%                     [Rx,Ry,Rz] = get_radarGPS2(GPSfile,Rtime);
-%                     obj.xyz=[Rx(:) Ry(:) Rz(:)];
-%                 end
+                if ~isempty(obj.G.xyz) % if the GPS object has xyz coordinates
+                    obj=get_xyz_radar(obj); % get xyz coordinates for all traces
+                else
+                    disp('No GPS data loaded (obj.G.xyz empty) - skipping xyz interpolation. Run get_GPS/get_GPS_all first.')
+                end
                 rd=obj;
                 % store everything in rd structure for saving
                 %rd.TDATA=[]; % remove TDATA field to save space
@@ -77,18 +70,11 @@ for n=1:length(obj.proc_subdir)
                 end
                 obj=filter_normalize(obj); % apply median filter and normalize to noise level
                 %obj=range_gain(obj); % apply AGG
-                %obj=get_xyz_radar(obj); % get xyz coordinates for all traces
-%                 if ~isempty(G2.xyz)
-%                     obj=get_xyz_radar(obj); % get xyz coordinates for all traces
-%                 else
-%                     if ~isempty(obj.S.ProfileTraces)
-%                         Rtime=obj.CPUtime(obj.S.ProfileTraces);
-%                     else
-%                         Rtime=obj.CPUtime;
-%                     end
-%                     [Rx,Ry,Rz] = get_radarGPS2(GPSfile,Rtime);
-%                     obj.xyz=[Rx(:) Ry(:) Rz(:)];
-%                 end
+                if ~isempty(obj.G.xyz) % if the GPS object has xyz coordinates
+                    obj=get_xyz_radar(obj); % get xyz coordinates for all traces
+                else
+                    disp('No GPS data loaded (obj.G.xyz empty) - skipping xyz interpolation. Run get_GPS/get_GPS_all first.')
+                end
                 rd=obj;
                 %rd.TDATA=[];
                 save([rd.proc_dir subdir '_' num2str(m)],'rd')

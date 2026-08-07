@@ -42,7 +42,7 @@ if strcmp(cont,'Y')
     %D=zeros(maxP,m5,nbatch)*NaN; % initialize D matrix
     T=zeros(n5-10,m5,nbatch)*NaN; % initialize time domain data matrix, account for more or less measurements per trace
     C2a=zeros(m5,nbatch)*NaN; % initialize radar trace time vector
-    %FN=zeros(m5,nbatch)*NaN; % initialize radar trace time coincident with GPS
+    FN=zeros(m5,nbatch)*NaN; % initialize source file number for each trace, for GPS interpolation
     disp(['processing files: ' num2str(minF) ' to ' num2str(maxF)])
     n4=maxP;
     
@@ -53,7 +53,7 @@ if strcmp(cont,'Y')
             %D(:,:,n)=r2.D2;
             T(:,:,n)=r2.T2; % store time domain
             C2a(:,n)=r2.C1;
-            %FN(:,n)=r2.fn;
+            FN(:,n)=r2.fn;
         end
     else % if not on GPU, use multiple cores
         if obj.P.Ncores>1
@@ -64,7 +64,7 @@ if strcmp(cont,'Y')
                 %D(:,:,n)=r2.D2;
                 T(:,:,n)=r2.T2; % store time domain
                 C2a(:,n)=r2.C1;
-                %FN(:,n)=r2.fn;
+                FN(:,n)=r2.fn;
             end
             matlabpool close % close the cores
         else % if not on GPU and only 1 core, don't open the matlab pool
@@ -74,17 +74,17 @@ if strcmp(cont,'Y')
                 %D(:,:,n)=r2.D2;
                 T(:,:,n)=r2.T2; % store time domain
                 C2a(:,n)=r2.C1;
-                %FN(:,n)=r2.fn;
+                FN(:,n)=r2.fn;
             end
         end
     end
     [n6,m6,q6]=size(P);
     obj.PDATA=single(reshape(P,n6,m6*q6));
     %obj.D=single(reshape(D,2*n6,m6*q6));
-%    obj.filenumber=FN(:);
+    obj.filenumber=FN(:);
     I2=isfinite(obj.PDATA(1,:)); % find finite traces
     obj.PDATA=obj.PDATA(:,I2); % remove trailing NaNs
-%    obj.filenumber=obj.filenumber(I2);
+    obj.filenumber=obj.filenumber(I2);
     [n7,m7,q7]=size(T);
     obj.TDATA=single(reshape(T,n7,m7*q7));
     obj.CPUtime=C2a(I2);
@@ -125,13 +125,15 @@ rd=cal_psd_radar(rd); % process for freq domain
 P2=zeros(n4/2,m5)*NaN; % initialize psd matrix
 %D2=zeros(n4,m5)*NaN; % initialize psd matrix
 T2=zeros(n5-10,m5)*NaN; % initialize time domain data matrix, account for more or less measurements per trace
-C1=zeros(m5,1)*NaN; 
+C1=zeros(m5,1)*NaN;
+fn=zeros(m5,1)*NaN;
 [~,m9]=size(rd.PDATA);
 [n10,m10]=size(rd.TDATA); % get the sizes
+fn(1:m9)=rd.filenumber;
 P2(1:n4/2,1:m9)=rd.PDATA(1:n4/2,:); % store psd
 %D2(1:n4,1:m9)=rd.D(1:n4,:); % store psd
 T2(1:n10,1:m10)=rd.TDATA; % store time domain
 C1(1:m9)=rd.CPUtime;
 % store in structure array for output
-r2.P2=P2;r2.T2=T2;r2.C1=C1;%r2.D2=D2;
+r2.P2=P2;r2.T2=T2;r2.C1=C1;r2.fn=fn;%r2.D2=D2;
 

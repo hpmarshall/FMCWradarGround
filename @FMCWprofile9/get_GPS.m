@@ -1,7 +1,9 @@
 function obj=get_GPS(obj)
 % HPM 07/28/10
 % this function gets the GPS coordinates associated with a given object
-% NOTE: this currently only works with the newest (2009-current) GPS files (GPSdata.txt)
+% Reads a GPSdata.txt-style file containing GGA sentences, one per line,
+% either prefixed with "<filenumber>," (onboard acquisition GPS logger) or
+% bare (standalone GPS logger, e.g. a Geode) - both are auto-detected.
 if isempty(obj.G.xyz)
     GPSfile=dir([obj.data_dir 'G*.txt']);
     fid=fopen([obj.data_dir GPSfile.name]);
@@ -11,8 +13,20 @@ if isempty(obj.G.xyz)
         M=zeros(length(S{1}),9); % initialize
         for n=1:length(S{1})
             S2=S{1}{n}; % current line
-            if (length(S2)>70 && length(S2)<80) % if we have the right # of characters
-                d=textscan(S2,'%f,%6c,%f,%f,%1c,%f,%1c,%f,%f,%f,%f,%1c,%f,%1c');
+            % locate a GGA sentence within the line: either prefixed with
+            % "<filenumber>," by the onboard acquisition GPS logger (e.g.
+            % GPSdata.txt, tying each fix to a specific radar file), or bare
+            % (e.g. from a standalone GPS logger not tied to the radar's
+            % internal file counter - see get_xyz_radar for how these are
+            % matched to radar traces without a filenumber)
+            k=regexp(S2,'\$G[PN]GGA','once');
+            if (~isempty(k) && length(S2)>50 && length(S2)<90)
+                if k>1 % prefixed with "<filenumber>,"
+                    d=textscan(S2,'%f,%6c,%f,%f,%1c,%f,%1c,%f,%f,%f,%f,%1c,%f,%1c');
+                else % bare GGA sentence, no filenumber prefix
+                    d0=textscan(S2,'%6c,%f,%f,%1c,%f,%1c,%f,%f,%f,%f,%1c,%f,%1c');
+                    d=[{NaN} d0]; % pad so field indices line up with the prefixed case
+                end
                 % next put NaNs in fields that didn't convert correctly
                 for p=1:length(d);
                     if isempty(d{p})

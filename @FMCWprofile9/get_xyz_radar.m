@@ -20,9 +20,13 @@ if ~isempty(obj.G.xyz)
         if (dt>obj.G.dtSkyCal & obj.G.HDOP(n)<obj.G.maxHDOP & isfinite(sum(obj.G.xyz(n,:))))  % if good GPS
             XYZ(n,:)=obj.G.xyz(n,:); % store XYZ
             DF=obj.G.daqfile(n);  % store radar daq file
-            I3= obj.filenumber==DF; % find all the radar traces with this filenumber
-            if ~isempty(find(I3))
-                RT(n)=min(obj.CPUtime(I3)); % get the time of the first radar trace in this file
+            if isfinite(DF) && ~isempty(obj.filenumber) % GPS fix tied to a specific radar file (e.g. onboard GPS logger)
+                I3= obj.filenumber==DF; % find all the radar traces with this filenumber
+                if ~isempty(find(I3))
+                    RT(n)=min(obj.CPUtime(I3)); % get the time of the first radar trace in this file
+                end
+            else % no filenumber match available (e.g. standalone GPS logger) - use the GPS fix's own timestamp
+                RT(n)=obj.G.time(n)-obj.G.UTCoffset/24; % align GPS UTC time to the DAQ computer clock
             end
         end
     end

@@ -29,6 +29,7 @@ nT=length(S); % number of traces per file
 %% loop over all requested files
 TDATA=zeros(TL,nT*length(obj.P.files))*NaN;
 Ct=zeros(1,nT*length(obj.P.files))*NaN;
+filenumber=zeros(1,nT*length(obj.P.files))*NaN;
 for n=1:length(obj.P.files)
     filename=[obj.data_dir D(obj.P.files(n)).name]; % filename
     load(filename)
@@ -52,11 +53,13 @@ for n=1:length(obj.P.files)
         [n5,~]=size(T);
         TDATA(1:n5,t1:t2)=single(T); % store in tdata matrix
         Ct(t1:t2)=CPUtime; % store
+        filenumber(t1:t2)=obj.P.files(n); % store source file index, for GPS interpolation
     end
 end
 %I2=isfinite(TDATA(1,:));
 obj.TDATA=TDATA; %(:,I2);
 obj.CPUtime=Ct; %(I2);
+obj.filenumber=filenumber; %(I2);
 obj.M.Fs=Fs;
 obj.Tpl=TL./obj.M.Fs; % pulse length
 

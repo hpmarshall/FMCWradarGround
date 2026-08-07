@@ -24,7 +24,7 @@ codedisk='/Users/hpmarshall/';
 %%
 rd=FMCWprofile8; % make a FMCW profile object
 rd.data_dir=[datadisk 'D_DRIVE/FMCW_TESTS/WINTER09/REYNOLDS031909/']; % raw data location
-rd.proc_dir=[codedisk 'D_DRIVE/PROJECTS/RME/PROC3/']; % location to store processed results
+rd.proc_dir=[codedisk 'D_DRIVE/PROJECTS/RME/PROC4/'] % location to store processed results
 rd.proc_subdir=1; %process the first 3 directories in rd.datadir
 rd.location='RME'; % location name
 %% NOTE: GPS parameters below set by default in @GPS/GPS.m
