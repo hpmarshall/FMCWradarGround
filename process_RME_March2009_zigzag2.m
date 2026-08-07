@@ -1,5 +1,4 @@
 % process_RME_March2009
-% this script requires m_map
 % choose directory and set parameters
 
 % CPU=computer; % check to see which computer I'm running on

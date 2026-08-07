@@ -65,9 +65,6 @@ if isempty(obj.G.xyz)
         ind=find(Lat>0 & Lon>0 & Lat<180 & Lon<180);
         Lon=-Lon(ind); % make negative
         Lat=Lat(ind);
-        % m_proj('UTM','lon',[min(Lon) max(Lon)],'lat',[min(Lat) max(Lat)],'ellipsoid','wgs84')
-        %m_proj('get')
-        % [x,y]=m_ll2xy(Lon,Lat);
         [x,y] = ll2utm(Lat, Lon);
         C=[x(:) y(:) M(ind,5)];
         
